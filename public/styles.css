@@ -1098,6 +1098,19 @@ button:disabled {
   margin-bottom: 12px;
 }
 
+/* 中文标签逐字皆可断行，auto 列会被压缩到 1 字宽导致竖排换行，
+   所有短标签统一禁止内部换行。 */
+.model-group-header,
+.model-group-header .group-select-all,
+.model-group-header span,
+.model-tags .tag,
+.result-foot .tag,
+.status-chip,
+.filter-chip,
+.badge {
+  white-space: nowrap;
+}
+
 .filter-chip {
   border: 1px solid var(--border);
   border-radius: 999px;
