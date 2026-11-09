@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>NVIDIA 免费模型探活台</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2376b900'/%3E%3Ctext x='32' y='45' font-size='36' font-family='Arial' font-weight='bold' text-anchor='middle' fill='%230d1400'%3EN%3C/text%3E%3C/svg%3E"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="brand">
+          <div class="brand-mark" aria-hidden="true">N</div>
+          <div class="brand-text">
+            <h1>免费模型探活台</h1>
+            <p class="hero-copy">
+              同步 NVIDIA API Catalog 模型列表，批量流式探测可用性与首字延迟；限流/排队与真实故障分开统计，避免误判。
+            </p>
+          </div>
+        </div>
+        <div class="topbar-meta">
+          <span id="serverKeyPill" class="pill">正在检查服务端配置…</span>
+          <span class="pill">OpenAI Compatible</span>
+        </div>
+      </header>
+
+      <main class="layout">
+        <aside class="sidebar">
+          <section class="panel controls-panel">
+            <div class="panel-title-row">
+              <h2>连接配置</h2>
+              <button id="toggleKeyBtn" class="icon-btn" type="button" title="显示或隐藏 Key">◐</button>
+            </div>
+
+            <label class="field">
+              <span>API Key <em id="keyOptionalNote" class="field-note"></em></span>
+              <input
+                id="apiKeyInput"
+                type="password"
+                placeholder="留空则使用服务端配置的 Key"
+                autocomplete="off"
+                spellcheck="false"
+              />
+            </label>
+
+            <label class="field hidden" id="tokenField">
+              <span>访问口令</span>
+              <input
+                id="tokenInput"
+                type="password"
+                placeholder="部署时设置的 ACCESS_TOKEN"
+                autocomplete="off"
+                spellcheck="false"
+              />
+            </label>
+
+            <div class="hint" id="keyHint">
+              部署在 Cloudflare Worker 上时，推荐用 <code>wrangler secret put NVIDIA_API_KEY</code>
+              在服务端配置 Key，这里留空即可。页面填写 Key 只会保存在当前浏览器。
+            </div>
+
+            <div class="grid two">
+              <label class="field">
+                <span>并发数</span>
+                <input id="concurrencyInput" type="number" min="1" max="8" value="3" />
+              </label>
+              <label class="field">
+                <span>超时秒数</span>
+                <input id="timeoutInput" type="number" min="5" max="120" value="30" />
+              </label>
+            </div>
+
+            <label class="field">
+              <span>测试提示词</span>
+              <textarea id="promptInput" rows="3">请只回复 ok</textarea>
+            </label>
+
+            <div class="action-row">
+              <button id="loadModelsBtn" class="primary-btn" type="button">同步模型列表</button>
+              <button id="testSelectedBtn" class="secondary-btn" type="button">测试已选模型</button>
+            </div>
+
+            <div class="quick-actions">
+              <button id="selectPresetBtn" class="ghost-btn" type="button">推荐一组</button>
+              <button id="selectAvailableBtn" class="ghost-btn" type="button">选最近可用</button>
+              <button id="selectAllBtn" class="ghost-btn" type="button">全选当前筛选</button>
+              <button id="clearSelectionBtn" class="ghost-btn" type="button">清空选择</button>
+            </div>
+          </section>
+
+          <section class="panel summary-panel">
+            <div class="panel-title-row">
+              <h2>结果概览</h2>
+            </div>
+            <div class="summary-grid">
+              <div class="stat-card">
+                <span class="stat-label">模型总数</span>
+                <strong id="totalModelsStat">0</strong>
+              </div>
+              <div class="stat-card">
+                <span class="stat-label">已选择</span>
+                <strong id="selectedModelsStat">0</strong>
+              </div>
+              <div class="stat-card ok">
+                <span class="stat-label">可用</span>
+                <strong id="okModelsStat">0</strong>
+              </div>
+              <div class="stat-card warn">
+                <span class="stat-label">失败</span>
+                <strong id="failModelsStat">0</strong>
+              </div>
+            </div>
+            <div id="progressBar" class="progress" aria-hidden="true">
+              <div id="progressFill" class="progress-fill"></div>
+            </div>
+            <div id="statusBar" class="status-bar idle">等待开始</div>
+          </section>
+        </aside>
+
+        <div class="main-column">
+          <div class="top-grid">
+            <section class="panel model-panel">
+              <div class="panel-title-row">
+                <div>
+                  <h2>模型列表</h2>
+                  <p id="modelSourceText" class="subtle">来源：预载快照</p>
+                </div>
+                <span id="modelSourceBadge" class="badge fallback">snapshot</span>
+              </div>
+              <div class="panel-toolbar">
+                <input
+                  id="searchInput"
+                  class="search-input"
+                  type="search"
+                  placeholder="搜索模型名，如 llama / qwen / embed"
+                />
+                <select id="capabilitySelect" class="inline-select">
+                  <option value="auto">全部类型</option>
+                  <option value="chat">聊天模型</option>
+                  <option value="embedding">向量模型</option>
+                  <option value="vision">视觉模型</option>
+                  <option value="code">代码模型</option>
+                  <option value="rerank">重排模型</option>
+                  <option value="safety">安全模型</option>
+                  <option value="audio">语音 / 音频</option>
+                  <option value="image">图像生成</option>
+                </select>
+                <select id="statusFilterSelect" class="inline-select">
+                  <option value="all">全部状态</option>
+                  <option value="untested">未测试</option>
+                  <option value="ok">最近可用</option>
+                  <option value="limited">限流/排队</option>
+                  <option value="fail">最近失败</option>
+                  <option value="skip">已跳过</option>
+                </select>
+              </div>
+              <div id="modelList" class="model-list"></div>
+            </section>
+
+            <section class="panel health-panel">
+              <div class="panel-title-row">
+                <div>
+                  <h2>当前可用清单</h2>
+                  <p class="subtle">最近一轮实测可用的模型；没测过时显示内置基线。</p>
+                </div>
+              </div>
+              <div class="panel-toolbar">
+                <div class="toolbar-actions">
+                  <button id="copyAvailableBtn" class="ghost-btn small" type="button">复制名称</button>
+                  <button id="copyConfigBtn" class="ghost-btn small" type="button">复制 OpenAI 配置</button>
+                  <button id="exportAvailableJsonBtn" class="ghost-btn small" type="button">导出 JSON</button>
+                </div>
+              </div>
+              <div id="healthList" class="health-list"></div>
+            </section>
+          </div>
+
+          <section class="panel result-panel">
+            <div class="panel-title-row">
+              <div>
+                <h2>测试结果</h2>
+                <p id="resultMeta" class="subtle">结果分四种状态：可用 / 限流排队（不算失败）/ 失败 / 跳过（接口不适用）。</p>
+              </div>
+              <div class="toolbar-actions">
+                <button id="retryFailedBtn" class="ghost-btn small" type="button">重试失败项</button>
+                <button id="abortBtn" class="ghost-btn small danger hidden" type="button">中止测试</button>
+                <button id="exportJsonBtn" class="ghost-btn small" type="button">导出 JSON</button>
+              </div>
+            </div>
+            <div id="resultChips" class="chip-row"></div>
+            <div id="resultList" class="result-list empty-state">
+              还没有结果。勾选模型后点「开始测试」，或用行内的 ⚡ 单测某个模型。
+            </div>
+          </section>
+
+          <section class="panel history-panel">
+            <div class="panel-title-row">
+              <div>
+                <h2>历史测试</h2>
+                <p class="subtle">每次测试形成一条会话记录，本地保留最近 5 次。</p>
+              </div>
+              <div class="history-actions">
+                <div id="historyTabs" class="history-tabs"></div>
+                <button id="clearHistoryBtn" class="ghost-btn small" type="button">清空历史</button>
+              </div>
+            </div>
+            <div id="historySummary" class="history-summary empty-inline">还没有历史测试记录。</div>
+            <div id="historyDiff" class="history-diff hidden"></div>
+            <div id="historyList" class="history-list empty-state">先跑一轮测试，历史会出现在这里。</div>
+          </section>
+        </div>
+      </main>
+
+      <footer class="page-footer">
+        页面数据仅保存在浏览器本地 · 请求经代理转发至 integrate.api.nvidia.com
+      </footer>
+    </div>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

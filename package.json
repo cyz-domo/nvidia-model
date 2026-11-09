@@ -1,0 +1,15 @@
+{
+  "name": "nvidia-model",
+  "private": true,
+  "version": "2.0.0",
+  "description": "NVIDIA 免费模型探活台 — Cloudflare Worker 代理 + 静态前端",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "test": "bun test"
+  },
+  "devDependencies": {
+    "wrangler": "^4"
+  }
+}
